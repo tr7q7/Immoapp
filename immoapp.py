@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-import matplotlib.pyplot as plt
 
 # --- Configuration de la page ---
 st.set_page_config(page_title="CF-Testing-b0", page_icon="💼", layout="centered")
@@ -118,19 +117,6 @@ if st.button("🔍 Calculer"):
     st.success("✅ Analyse enregistrée")
 
 # --- Affichage des 3 derniers calculs ---
-if st.session_state.history:
-    # Graphique cashflow
-    st.markdown("#### 📊 Évolution du cashflow sur les 3 derniers calculs")
-    fig, ax = plt.subplots()
-    noms = [f"CF{i+1}" for i in range(len(st.session_state.history)-1, -1, -1)]
-    valeurs = [st.session_state.history[i]["cashflow"] for i in range(len(st.session_state.history)-1, -1, -1)]
-    barlist = ax.bar(noms, valeurs)
-    for bar, v in zip(barlist, valeurs):
-        bar.set_color("orange" if v >= 0 else "red")
-    ax.set_ylabel("Cashflow mensuel (€)")
-    ax.set_ylim(min(0, min(valeurs)) * 1.1, max(valeurs) * 1.1)
-    st.pyplot(fig)
-
 for i, res in enumerate(st.session_state.history):
     nom = f"CF{i+1}"
     couleur_cf = "green" if res["cashflow"] > 0 else "red"
