@@ -1,13 +1,39 @@
 import streamlit as st
 import time
-import numpy as np
-import pandas as pd
 
-st.set_page_config(page_title="Analyse Immo", page_icon="🏡", layout="centered")
+# --- Configuration de la page ---
+st.set_page_config(page_title="CF-Testing-b0", page_icon="💼", layout="centered")
 
-st.title("📊 Analyse Immo - Saisie rapide")
+# --- Style CSS personnalisé ---
+st.markdown("""
+    <style>
+        html, body, [class*="css"]  {
+            font-size: 120% !important;
+            color: white !important;
+        }
+        h1 {
+            font-size: 2em !important;
+        }
+        .stSlider > div > div {
+            color: white !important;
+        }
+        .stSlider > div > div > div[role="slider"] {
+            background-color: orange !important;
+            border: 1px solid white;
+            height: 32px !important;
+            width: 32px !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-st.markdown("#### 📥 Informations générales")
+st.title("CF-Testing-b0")
+
+# --- Stockage des calculs précédents ---
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# --- Étape 1 : Entrée utilisateur ---
+st.markdown("#### 📅 Informations générales")
 
 prix_bien = st.slider("Prix du bien", 20000, 500000, step=5000, value=150000, format="€%d")
 travaux = st.slider("Estimation des travaux", 5000, 200000, step=5000, value=20000, format="€%d")
@@ -24,39 +50,35 @@ duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, form
 st.markdown("#### ⚙️ Choix du montage fiscal")
 montage = st.radio("Montage", ["Nom Propre", "SCI"], horizontal=True)
 
-# Pré-calculs
+# --- Calculs ---
 duree_credit_mois = duree_credit_ans * 12
 taux_mensuel = taux_credit / 100 / 12
 frais_notaire = prix_bien * 0.08
 frais_dossier = 1400
 montant_emprunte = prix_bien + frais_notaire + frais_dossier + travaux
 
-# Mensualité de crédit
 if taux_mensuel > 0:
     mensualite = montant_emprunte * (taux_mensuel / (1 - (1 + taux_mensuel) ** -duree_credit_mois))
 else:
     mensualite = montant_emprunte / duree_credit_mois
 
-# Amortissement annuel
+# Simulation année 1
 solde = montant_emprunte
 interets_annuels = []
 amortissements_annuels = []
-mensualites_annuelles = []
 
-for annee in range(1, duree_credit_ans + 1):
+for _ in range(duree_credit_ans):
     interet_total = 0
-    amortissement_total = 0
-    for mois in range(12):
+    amort_total = 0
+    for _ in range(12):
         interet = solde * taux_mensuel
-        amortissement = mensualite - interet
-        solde -= amortissement
+        amort = mensualite - interet
+        solde -= amort
         interet_total += interet
-        amortissement_total += amortissement
+        amort_total += amort
     interets_annuels.append(interet_total)
-    amortissements_annuels.append(amortissement_total)
-    mensualites_annuelles.append(mensualite * 12)
+    amortissements_annuels.append(amort_total)
 
-# Calculs fiscaux
 loyer_annuel = loyer * 12
 assurance_annuelle = assurance * 12
 revenu_foncier = loyer_annuel - taxe_fonciere - assurance_annuelle
@@ -64,66 +86,52 @@ amortissement_bien = prix_bien / 20
 amortissement_travaux = travaux / 25
 revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
 
-# Imposition selon montage
 taux_imposition = 0.15 if montage == "SCI" else 0.582
 impot = max(revenu_imposable * taux_imposition, 0)
-
 credit_annuel = mensualite * 12
 resultat_net_annuel = revenu_foncier - impot - credit_annuel
 cashflow_mensuel = resultat_net_annuel / 12
 rendement_annuel = resultat_net_annuel / montant_emprunte
 
-# Affichage principal
+# --- Calcul et affichage ---
 if st.button("🔍 Calculer"):
     with st.spinner("Calcul en cours..."):
-        time.sleep(2)
+        time.sleep(1.5)
 
-    st.success("✅ Analyse terminée")
+    result = {
+        "cashflow": cashflow_mensuel,
+        "rendement": rendement_annuel,
+        "impot": impot,
+        "revenu_imposable": revenu_imposable,
+        "revenu_foncier": revenu_foncier,
+        "credit": credit_annuel,
+        "interet": interets_annuels[0],
+        "capital": amortissements_annuels[0],
+        "mensualite": mensualite,
+        "montage": montage
+    }
 
-    # Cashflow mensuel
-    if cashflow_mensuel >= 0:
-        st.markdown(f"<h3 style='color:green;'>💶 Cashflow mensuel : {cashflow_mensuel:,.0f} €</h3>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<h3 style='color:red;'>💶 Cashflow mensuel : {cashflow_mensuel:,.0f} €</h3>", unsafe_allow_html=True)
+    st.session_state.history.insert(0, result)
+    st.session_state.history = st.session_state.history[:3]
 
-    # Rendement annuel
-    couleur_rendement = (
-        "gray" if rendement_annuel < 0.03 else
-        "green" if rendement_annuel < 0.05 else
-        "purple"
-    )
-    st.markdown(f"<h4 style='color:{couleur_rendement};'>📈 Rendement annuel : {rendement_annuel * 100:.2f} %</h4>", unsafe_allow_html=True)
+    st.success("✅ Analyse enregistrée")
 
-    # Détails dans une section repliable
-    with st.expander("📂 Voir les détails du calcul"):
-        st.markdown("### 📄 Résumé du financement")
-        st.write(f"**Montage choisi :** {montage}")
-        st.write(f"**Taux d'imposition appliqué :** {int(taux_imposition * 100)} %")
-        st.write(f"**Frais de notaire :** {frais_notaire:,.0f} €")
-        st.write(f"**Montant total emprunté :** {montant_emprunte:,.0f} €")
-        st.write(f"**Mensualité de crédit :** {mensualite:,.0f} €")
+# --- Affichage des 3 derniers calculs ---
+for i, res in enumerate(st.session_state.history):
+    nom = f"CF{i+1}"
+    couleur_cf = "green" if res["cashflow"] > 0 else "red"
+    couleur_rdt = "gray" if res["rendement"] < 0.03 else "green" if res["rendement"] < 0.05 else "purple"
 
-        st.markdown("### 📘 Amortissement - Année 1")
-        st.write(f"**Intérêts (année 1) :** {interets_annuels[0]:,.0f} €")
-        st.write(f"**Capital remboursé (année 1) :** {amortissements_annuels[0]:,.0f} €")
+    with st.expander(f"📂 {nom} - Résumé"):
+        st.markdown(f"<span style='color:{couleur_cf}; font-size: 1.5em;'>💶 Cashflow mensuel : {res['cashflow']:,.0f} €</span>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:{couleur_rdt}; font-size: 1.2em;'>📈 Rendement annuel : {res['rendement'] * 100:.2f} %</span>", unsafe_allow_html=True)
 
-        st.markdown("### 💰 Simulation fiscale")
-        st.write(f"**Loyer annuel :** {loyer_annuel:,.0f} €")
-        st.write(f"**Assurance annuelle :** {assurance_annuelle:,.0f} €")
-        st.write(f"**Revenus fonciers annuels :** {revenu_foncier:,.0f} €")
-        st.write(f"**Revenu imposable :** {revenu_imposable:,.0f} €")
-        st.write(f"**Impôt estimé :** {impot:,.0f} €")
-
-        st.markdown("### 💸 Résultat net")
-        st.write(f"**Résultat net annuel :** {resultat_net_annuel:,.0f} €")
-
-        # Tableau annuel
-        df_amortissement = pd.DataFrame({
-            "Année": list(range(1, duree_credit_ans + 1)),
-            "Mensualités totales (€)": np.round(mensualites_annuelles, 0),
-            "Part intérêt (€)": np.round(interets_annuels, 0),
-            "Part capital (€)": np.round(amortissements_annuels, 0)
-        })
-
-        st.markdown("### 📊 Détail complet du crédit")
-        st.dataframe(df_amortissement, use_container_width=True)
+        with st.expander("🔎 Voir détails"):
+            st.write(f"**Montage :** {res['montage']}")
+            st.write(f"**Mensualité :** {res['mensualite']:,.0f} €")
+            st.write(f"**Intérêts (année 1) :** {res['interet']:,.0f} €")
+            st.write(f"**Capital remboursé (année 1) :** {res['capital']:,.0f} €")
+            st.write(f"**Revenu foncier :** {res['revenu_foncier']:,.0f} €")
+            st.write(f"**Revenu imposable :** {res['revenu_imposable']:,.0f} €")
+            st.write(f"**Impôt estimé :** {res['impot']:,.0f} €")
+            st.write(f"**Résultat net annuel :** {res['revenu_foncier'] - res['impot'] - res['credit']:,.0f} €")
