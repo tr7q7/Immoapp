@@ -20,8 +20,8 @@ st.markdown("""
         .stSlider > div > div > div[role="slider"] {
             background-color: orange !important;
             border: 1px solid white;
-            height: 32px !important;
-            width: 32px !important;
+            height: 48px !important;
+            width: 48px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -122,7 +122,8 @@ for i, res in enumerate(st.session_state.history):
     couleur_cf = "green" if res["cashflow"] > 0 else "red"
     couleur_rdt = "gray" if res["rendement"] < 0.03 else "green" if res["rendement"] < 0.05 else "purple"
 
-    with st.expander(f"📂 {nom} - Résumé"):
+    expanded = True if i == 0 else False
+    with st.expander(f"📂 {nom} - Résumé", expanded=expanded):
         st.markdown(f"<span style='color:{couleur_cf}; font-size: 1.5em;'>💶 Cashflow mensuel : {res['cashflow']:,.0f} €</span>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:{couleur_rdt}; font-size: 1.2em;'>📈 Rendement annuel : {res['rendement'] * 100:.2f} %</span>", unsafe_allow_html=True)
 
