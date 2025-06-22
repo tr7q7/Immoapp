@@ -22,8 +22,8 @@ st.markdown("""
         .stSlider > div > div > div[role="slider"] {
             background-color: orange !important;
             border: 1px solid white;
-            height: 96px !important;
-            width: 96px !important;
+            height: 144px !important;
+            width: 144px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -35,7 +35,7 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 # --- Étape 1 : Entrée utilisateur ---
-st.markdown("#### 📅 Informations générales")
+st.markdown("#### 🗕️ Informations générales")
 
 prix_bien = st.slider("Prix du bien", 20000, 500000, step=5000, value=150000, format="€%d")
 travaux = st.slider("Estimation des travaux", 5000, 200000, step=5000, value=20000, format="€%d")
@@ -106,7 +106,10 @@ if st.button("Calculer"):
         "taxe_fonciere": taxe_fonciere,
         "assurance": assurance_annuelle,
         "charges_copro": charges_copro_annuelles,
-        "credit": credit_annuel
+        "credit": credit_annuel,
+        "interet": round(interets_annuels[0]),
+        "frais_notaire": round(frais_notaire),
+        "travaux": travaux
     })
     st.session_state.history = st.session_state.history[:3]  # max 3 entrées
 
@@ -145,10 +148,12 @@ if st.session_state.history:
         ax.barh(0, v, left=left, color=c, edgecolor="none")
         left += v
     ax.set_xlim(0, total)
+    ax.set_facecolor('black')
+    fig.patch.set_facecolor('black')
     ax.axis("off")
     st.pyplot(fig)
 
-    # Légende
+    # Légende horizontale compacte
     legend_items = [
         f"<span style='color:{colors[i]}'><b>{labels[i]}</b> : {values[i]:,.0f} € ({(values[i]/total*100):.1f}%)</span>"
         for i in range(len(labels))
@@ -162,4 +167,7 @@ if st.session_state.history:
         st.write(f"Assurance : {data['assurance']} €")
         st.write(f"Charges copro : {data['charges_copro']} €")
         st.write(f"Crédit : {data['credit']} €")
+        st.write(f"Intérêt annuel : {data['interet']} €")
+        st.write(f"Frais de notaire : {data['frais_notaire']} €")
+        st.write(f"Travaux : {data['travaux']} €")
         st.write(f"Cashflow : {data['cashflow']*12:.2f} € / an")
