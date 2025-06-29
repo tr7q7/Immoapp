@@ -85,7 +85,7 @@ if st.button("Calculer"):
     loyer_annuel = loyer * 12
     assurance_annuelle = assurance * 12
     charges_copro_annuelles = charges_copro * 12
-    revenu_foncier = loyer_annuel - taxe_fonciere - assurance_annuelle
+    revenu_foncier = loyer_annuel - taxe_fonciere - assurance_annuelle - charges_copro_annuelles
     amortissement_bien = prix_bien / 20
     amortissement_travaux = travaux / 25
     revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
@@ -93,7 +93,7 @@ if st.button("Calculer"):
     taux_imposition = 0.582 if montage == "Nom Propre" else 0.15
     impot = max(revenu_imposable * taux_imposition, 0)
     credit_annuel = mensualite * 12
-    resultat_net = revenu_foncier - credit_annuel - impot - charges_copro_annuelles
+    resultat_net = revenu_foncier - credit_annuel - impot
     cashflow = resultat_net / 12
     rendement = (resultat_net / montant_emprunte) * 100
 
