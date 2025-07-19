@@ -22,8 +22,8 @@ st.markdown("""
         .stSlider > div > div > div[role="slider"] {
             background-color: orange !important;
             border: 1px solid white;
-            height: 144px !important;
-            width: 144px !important;
+            height: 150px !important;
+            width: 150px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -37,15 +37,15 @@ if "history" not in st.session_state:
 # --- Étape 1 : Entrée utilisateur ---
 st.markdown("#### 🗕️ Informations générales")
 
-prix_bien = st.slider("Prix du bien", 20000, 500000, step=5000, value=150000, format="€%d")
-travaux = st.slider("Estimation des travaux", 5000, 200000, step=5000, value=20000, format="€%d")
-loyer = st.slider("Loyer mensuel estimé", 200, 5000, step=50, value=700, format="€%d")
+prix_bien = st.slider("Prix du bien", 30000, 350000, step=5000, value=150000, format="€%d")
+travaux = st.slider("Estimation des travaux", 0, 150000, step=5000, value=20000, format="€%d")
+loyer = st.slider("Loyer mensuel estimé", 300, 3500, step=50, value=700, format="€%d")
 
 st.markdown("#### 🏦 Données financières")
 
-taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 5000, step=50, value=800, format="€%d")
+taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 3000, step=50, value=800, format="€%d")
 charges_copro = st.slider("Charges de copropriété mensuelles", 10, 400, step=10, value=100, format="€%d")
-assurance = st.slider("Assurance mensuelle", 0, 200, step=5, value=20, format="€%d")
+assurance = st.slider("Assurance mensuelle", 0, 100, step=5, value=20, format="€%d")
 taux_credit = st.slider("Taux du crédit", 0.0, 4.0, step=0.1, value=1.5, format="%.2f %%")
 duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, format="%d ans")
 
