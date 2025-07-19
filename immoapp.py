@@ -22,8 +22,12 @@ st.markdown("""
         .stSlider > div > div > div[role="slider"] {
             background-color: orange !important;
             border: 1px solid white;
-            height: 150px !important;
-            width: 150px !important;
+            height: 180px !important;
+            width: 180px !important;
+        }
+        .stSlider > div > div > div[data-baseweb="slider"] {
+            padding-top: 30px !important;
+            padding-bottom: 30px !important;
         }
     </style>
 """, unsafe_allow_html=True)
