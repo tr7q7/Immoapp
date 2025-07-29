@@ -22,12 +22,8 @@ st.markdown("""
         .stSlider > div > div > div[role="slider"] {
             background-color: orange !important;
             border: 1px solid white;
-            height: 180px !important;
-            width: 180px !important;
-        }
-        .stSlider > div > div > div[data-baseweb="slider"] {
-            padding-top: 30px !important;
-            padding-bottom: 30px !important;
+            height: 150px !important;
+            width: 150px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -39,7 +35,7 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 # --- Étape 1 : Entrée utilisateur ---
-st.markdown("#### 🗕️ Informations générales")
+st.markdown("#### 🔕️ Informations générales")
 
 prix_bien = st.slider("Prix du bien", 30000, 350000, step=5000, value=150000, format="€%d")
 travaux = st.slider("Estimation des travaux", 0, 150000, step=5000, value=20000, format="€%d")
@@ -54,7 +50,7 @@ taux_credit = st.slider("Taux du crédit", 0.0, 4.0, step=0.1, value=1.5, format
 duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, format="%d ans")
 
 st.markdown("#### ⚙️ Choix du montage fiscal")
-montage = st.radio("Montage", ["Nom Propre", "SCI"], horizontal=True)
+montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], horizontal=True)
 
 if st.button("Calculer"):
     # --- Calculs ---
@@ -92,9 +88,17 @@ if st.button("Calculer"):
     revenu_foncier = loyer_annuel - taxe_fonciere - assurance_annuelle - charges_copro_annuelles
     amortissement_bien = prix_bien / 20
     amortissement_travaux = travaux / 25
-    revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
 
-    taux_imposition = 0.582 if montage == "Nom Propre" else 0.15
+    if montage == "Nom Propre (LMNP)":
+        revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
+        taux_imposition = 0.582  # impôt + prél. sociaux simulés
+    elif montage == "SCI":
+        revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
+        taux_imposition = 0.15 + 0.172  # IS + prél. sociaux
+    else:  # Nom Propre (Nue)
+        revenu_imposable = revenu_foncier - interets_annuels[0]
+        taux_imposition = 0.30 + 0.172  # TMI + prél. sociaux
+
     impot = max(revenu_imposable * taux_imposition, 0)
     credit_annuel = mensualite * 12
     resultat_net = revenu_foncier - credit_annuel - impot
@@ -113,7 +117,8 @@ if st.button("Calculer"):
         "credit": credit_annuel,
         "interet": round(interets_annuels[0]),
         "frais_notaire": round(frais_notaire),
-        "travaux": travaux
+        "travaux": travaux,
+        "montage": montage
     })
     st.session_state.history = st.session_state.history[:3]  # max 3 entrées
 
@@ -166,6 +171,7 @@ if st.session_state.history:
 
     # --- Détails ---
     with st.expander("🔍 Voir détails"):
+        st.write(f"Montage : {data['montage']}")
         st.write(f"Impôt : {data['impot']} €")
         st.write(f"Taxe foncière : {data['taxe_fonciere']} €")
         st.write(f"Assurance : {data['assurance']} €")
@@ -175,3 +181,29 @@ if st.session_state.history:
         st.write(f"Frais de notaire : {data['frais_notaire']} €")
         st.write(f"Travaux : {data['travaux']} €")
         st.write(f"Cashflow : {data['cashflow']*12:.2f} € / an")
+
+    # --- Comparaison des montages ---
+    if st.button("Comparer les régimes fiscaux"):
+        tableau = []
+        for regime in ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"]:
+            if regime == "Nom Propre (LMNP)":
+                revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
+                taux_imposition = 0.582
+            elif regime == "SCI":
+                revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
+                taux_imposition = 0.15 + 0.172
+            else:
+                revenu_imposable = revenu_foncier - interets_annuels[0]
+                taux_imposition = 0.30 + 0.172
+
+            imp = max(revenu_imposable * taux_imposition, 0)
+            resultat_net = revenu_foncier - credit_annuel - imp
+            cf = resultat_net / 12
+            rdt = (resultat_net / montant_emprunte) * 100
+            tableau.append((regime, round(cf, 2), round(rdt, 2), round(imp)))
+
+        st.markdown("### 📊 Comparaison des montages fiscaux")
+        st.write("| Régime | Cashflow (€/mois) | Rendement (%) | Impôt (€/an) |")
+        st.write("|--------|--------------------|----------------|----------------|")
+        for row in tableau:
+            st.write(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} |")
