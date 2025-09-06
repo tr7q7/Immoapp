@@ -42,11 +42,29 @@ st.markdown("#### 🔕 Informations générales")
 
 def slider_input(label, min_value, max_value, step, default, format_str):
     col1, col2 = st.columns([3, 1])
+    if f"value_{label}" not in st.session_state:
+        st.session_state[f"value_{label}"] = default
+
     with col1:
-        slider_val = st.slider(label, min_value, max_value, step=step, value=default, format=format_str, key=f"slider_{label}")
+        slider_val = st.slider(
+            label, min_value, max_value, step=step,
+            value=st.session_state[f"value_{label}"], format=format_str,
+            key=f"slider_{label}"
+        )
     with col2:
-        input_val = st.number_input(" ", min_value=min_value, max_value=max_value, value=slider_val, step=step, label_visibility="collapsed", key=f"input_{label}")
-    return input_val
+        input_val = st.number_input(
+            " ", min_value=min_value, max_value=max_value,
+            value=st.session_state[f"value_{label}"], step=step,
+            label_visibility="collapsed", key=f"input_{label}"
+        )
+
+    # synchronisation des deux widgets
+    if slider_val != st.session_state[f"value_{label}"]:
+        st.session_state[f"value_{label}"] = slider_val
+    elif input_val != st.session_state[f"value_{label}"]:
+        st.session_state[f"value_{label}"] = input_val
+
+    return st.session_state[f"value_{label}"]
 
 prix_bien = slider_input("Prix du bien", 30000, 350000, 5000, 150000, "€%d")
 travaux = slider_input("Estimation des travaux", 0, 150000, 5000, 20000, "€%d")
@@ -59,6 +77,9 @@ duree_credit_ans = slider_input("Durée du crédit", 10, 30, 1, 20, "%d ans")
 
 st.markdown("#### ⚙️ Choix du montage fiscal")
 montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], horizontal=True)
+
+# Le reste du script reste inchangé après cette section
+
 
 # Le reste du script reste inchangé après cette section
 
@@ -190,5 +211,6 @@ if st.session_state.history:
         for m, d in comparaisons.items():
             couleur = "green" if d["cashflow"] > 0 else "red"
             st.markdown(f"**{m}** : Cashflow <span style='color:{couleur}'><b>{d['cashflow']} €/mois</b></span> — Rendement : {d['rendement']:.2f} % — Impôt : {d['impot']} €", unsafe_allow_html=True)
+
 
 
