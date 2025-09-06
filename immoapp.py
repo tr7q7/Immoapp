@@ -40,46 +40,22 @@ if "history" not in st.session_state:
 # --- Entrée utilisateur ---
 st.markdown("#### 🔕 Informations générales")
 
-col1, col2 = st.columns([3, 1])
-with col1:
-    prix_bien = st.slider("Prix du bien", 30000, 350000, step=5000, value=150000, format="€%d")
-with col2:
-    prix_bien = st.number_input("", value=prix_bien, step=1000, label_visibility="collapsed")
+def slider_input(label, min_value, max_value, step, default, format_str):
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        slider_val = st.slider(label, min_value, max_value, step=step, value=default, format=format_str, key=f"slider_{label}")
+    with col2:
+        input_val = st.number_input(" ", min_value=min_value, max_value=max_value, value=slider_val, step=step, label_visibility="collapsed", key=f"input_{label}")
+    return input_val
 
-with col1:
-    travaux = st.slider("Estimation des travaux", 0, 150000, step=5000, value=20000, format="€%d")
-with col2:
-    travaux = st.number_input(" ", value=travaux, step=1000, label_visibility="collapsed")
-
-with col1:
-    loyer = st.slider("Loyer mensuel estimé", 300, 3500, step=50, value=700, format="€%d")
-with col2:
-    loyer = st.number_input("  ", value=loyer, step=50, label_visibility="collapsed")
-
-with col1:
-    taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 3000, step=50, value=800, format="€%d")
-with col2:
-    taxe_fonciere = st.number_input("   ", value=taxe_fonciere, step=50, label_visibility="collapsed")
-
-with col1:
-    charges_copro = st.slider("Charges de copropriété mensuelles", 10, 400, step=10, value=100, format="€%d")
-with col2:
-    charges_copro = st.number_input("    ", value=charges_copro, step=10, label_visibility="collapsed")
-
-with col1:
-    assurance = st.slider("Assurance mensuelle", 0, 100, step=5, value=20, format="€%d")
-with col2:
-    assurance = st.number_input("     ", value=assurance, step=5, label_visibility="collapsed")
-
-with col1:
-    taux_credit = st.slider("Taux du crédit", 0.0, 4.0, step=0.1, value=1.5, format="%.2f %%")
-with col2:
-    taux_credit = st.number_input("      ", value=taux_credit, step=0.1, label_visibility="collapsed")
-
-with col1:
-    duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, format="%d ans")
-with col2:
-    duree_credit_ans = st.number_input("       ", value=duree_credit_ans, step=1, label_visibility="collapsed")
+prix_bien = slider_input("Prix du bien", 30000, 350000, 5000, 150000, "€%d")
+travaux = slider_input("Estimation des travaux", 0, 150000, 5000, 20000, "€%d")
+loyer = slider_input("Loyer mensuel estimé", 300, 3500, 50, 700, "€%d")
+taxe_fonciere = slider_input("Taxe foncière annuelle", 500, 3000, 50, 800, "€%d")
+charges_copro = slider_input("Charges de copropriété mensuelles", 10, 400, 10, 100, "€%d")
+assurance = slider_input("Assurance mensuelle", 0, 100, 5, 20, "€%d")
+taux_credit = slider_input("Taux du crédit", 0.0, 4.0, 0.1, 1.5, "%.2f %%")
+duree_credit_ans = slider_input("Durée du crédit", 10, 30, 1, 20, "%d ans")
 
 st.markdown("#### ⚙️ Choix du montage fiscal")
 montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], horizontal=True)
@@ -214,4 +190,5 @@ if st.session_state.history:
         for m, d in comparaisons.items():
             couleur = "green" if d["cashflow"] > 0 else "red"
             st.markdown(f"**{m}** : Cashflow <span style='color:{couleur}'><b>{d['cashflow']} €/mois</b></span> — Rendement : {d['rendement']:.2f} % — Impôt : {d['impot']} €", unsafe_allow_html=True)
+
 
