@@ -25,9 +25,6 @@ st.markdown("""
             height: 150px !important;
             width: 150px !important;
         }
-        input[type=number] {
-            font-size: 1em !important;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -40,49 +37,18 @@ if "history" not in st.session_state:
 # --- Entrée utilisateur ---
 st.markdown("#### 🔕 Informations générales")
 
-def slider_input(label, min_value, max_value, step, default, format_str):
-    col1, col2 = st.columns([3, 1])
-    if f"value_{label}" not in st.session_state:
-        st.session_state[f"value_{label}"] = default
+prix_bien = st.slider("Prix du bien", 30000, 350000, step=5000, value=150000, format="€%d")
+travaux = st.slider("Estimation des travaux", 0, 150000, step=5000, value=20000, format="€%d")
+loyer = st.slider("Loyer mensuel estimé", 300, 3500, step=50, value=700, format="€%d")
 
-    with col1:
-        slider_val = st.slider(
-            label, min_value, max_value, step=step,
-            value=st.session_state[f"value_{label}"], format=format_str,
-            key=f"slider_{label}"
-        )
-    with col2:
-        input_val = st.number_input(
-            " ", min_value=min_value, max_value=max_value,
-            value=st.session_state[f"value_{label}"], step=step,
-            label_visibility="collapsed", key=f"input_{label}"
-        )
-
-    # synchronisation des deux widgets
-    if slider_val != st.session_state[f"value_{label}"]:
-        st.session_state[f"value_{label}"] = slider_val
-    elif input_val != st.session_state[f"value_{label}"]:
-        st.session_state[f"value_{label}"] = input_val
-
-    return st.session_state[f"value_{label}"]
-
-prix_bien = slider_input("Prix du bien", 30000, 350000, 5000, 150000, "€%d")
-travaux = slider_input("Estimation des travaux", 0, 150000, 5000, 20000, "€%d")
-loyer = slider_input("Loyer mensuel estimé", 300, 3500, 50, 700, "€%d")
-taxe_fonciere = slider_input("Taxe foncière annuelle", 500, 3000, 50, 800, "€%d")
-charges_copro = slider_input("Charges de copropriété mensuelles", 10, 400, 10, 100, "€%d")
-assurance = slider_input("Assurance mensuelle", 0, 100, 5, 20, "€%d")
-taux_credit = slider_input("Taux du crédit", 0.0, 4.0, 0.1, 1.5, "%.2f %%")
-duree_credit_ans = slider_input("Durée du crédit", 10, 30, 1, 20, "%d ans")
+taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 3000, step=50, value=800, format="€%d")
+charges_copro = st.slider("Charges de copropriété mensuelles", 10, 400, step=10, value=100, format="€%d")
+assurance = st.slider("Assurance mensuelle", 0, 100, step=5, value=20, format="€%d")
+taux_credit = st.slider("Taux du crédit", 0.0, 4.0, step=0.1, value=1.5, format="%.2f %%")
+duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, format="%d ans")
 
 st.markdown("#### ⚙️ Choix du montage fiscal")
 montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], horizontal=True)
-
-# Le reste du script reste inchangé après cette section
-
-
-# Le reste du script reste inchangé après cette section
-
 
 def calculer_resultats(montage):
     duree_credit_mois = duree_credit_ans * 12
@@ -211,6 +177,3 @@ if st.session_state.history:
         for m, d in comparaisons.items():
             couleur = "green" if d["cashflow"] > 0 else "red"
             st.markdown(f"**{m}** : Cashflow <span style='color:{couleur}'><b>{d['cashflow']} €/mois</b></span> — Rendement : {d['rendement']:.2f} % — Impôt : {d['impot']} €", unsafe_allow_html=True)
-
-
-
