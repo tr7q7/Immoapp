@@ -1,7 +1,5 @@
 import streamlit as st
-import time
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 
 # --- Configuration de la page ---
 st.set_page_config(page_title="CF-Testing-b0", page_icon="💼", layout="centered")
@@ -68,7 +66,6 @@ def frais_notaire_estime(prix: float) -> float:
         if p0 <= prix <= p1:
             t = (prix - p0) / (p1 - p0)
             return float(f0 + t * (f1 - f0))
-
     return float(prix * 0.07)
 
 # --- Entrée utilisateur ---
@@ -81,15 +78,17 @@ loyer = st.slider("Loyer mensuel estimé", 300, 3500, step=50, value=700, format
 taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 3000, step=50, value=800, format="€%d")
 charges_copro = st.slider("Charges de copropriété mensuelles", 10, 400, step=10, value=100, format="€%d")
 assurance = st.slider("Assurance mensuelle", 0, 100, step=5, value=20, format="€%d")
-
-# ✅ CFE (on l’applique uniquement en LMNP)
 cfe_annuelle = st.slider("CFE annuelle (LMNP)", 0, 2000, step=50, value=300, format="€%d")
 
-taux_credit = st.slider("Taux du crédit", 0.0, 4.0, step=0.1, value=1.5, format="%.2f %%")
+taux_credit = st.slider("Taux du crédit", 0.0, 6.0, step=0.1, value=1.5, format="%.2f %%")
 duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, format="%d ans")
 
 st.markdown("#### ⚙️ Choix du montage fiscal")
 montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], horizontal=True)
+
+# ✅ paramètres fiscaux simplifiés (modifiables si tu veux)
+tmi = st.slider("TMI (IR) - pour SCI/Nue", 0, 45, step=1, value=30, format="%d %%") / 100
+ps = 0.172  # prélèvements sociaux
 
 def calculer_resultats(montage):
     duree_credit_mois = duree_credit_ans * 12
@@ -104,45 +103,52 @@ def calculer_resultats(montage):
     else:
         mensualite = montant_emprunte / duree_credit_mois
 
+    # intérêts année 1 (approx) via amortissement mois par mois
     solde = montant_emprunte
-    interets_annuels = []
-    for _ in range(duree_credit_ans):
-        interet_total = 0
-        for _ in range(12):
-            interet = solde * taux_mensuel
-            amort = mensualite - interet
-            solde -= amort
-            interet_total += interet
-        interets_annuels.append(interet_total)
+    interet_total = 0
+    for _ in range(12):
+        interet = solde * taux_mensuel
+        amort = mensualite - interet
+        solde -= amort
+        interet_total += interet
+    interet_annuel_annee1 = interet_total
 
     loyer_annuel = loyer * 12
     assurance_annuelle = assurance * 12
     charges_copro_annuelles = charges_copro * 12
-
-    # ✅ CFE : uniquement si LMNP, sinon 0
     cfe_annuelle_calc = cfe_annuelle if montage == "Nom Propre (LMNP)" else 0
 
-    # ✅ Charges annuelles totales (hors crédit, hors impôt)
     charges_exploitation = taxe_fonciere + assurance_annuelle + charges_copro_annuelles + cfe_annuelle_calc
+    resultat_exploitation = loyer_annuel - charges_exploitation
 
-    revenu_foncier = loyer_annuel - charges_exploitation
+    # amortissements (vision LMNP réel simplifiée)
+    amortissement_bien = prix_bien / 30  # plus réaliste que 20 ans (souvent 25-40)
+    amortissement_travaux = travaux / 10 if travaux > 0 else 0  # souvent 5-15 ans selon nature
 
-    amortissement_bien = prix_bien / 20
-    amortissement_travaux = travaux / 25
-
-    if montage == "Nom Propre (LMNP)":
-        revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
-        taux_imposition = 0.582
-    elif montage == "SCI":
-        revenu_imposable = revenu_foncier - interets_annuels[0] - amortissement_bien - amortissement_travaux
-        taux_imposition = 0.15 + 0.172
-    else:
-        revenu_imposable = revenu_foncier - interets_annuels[0]
-        taux_imposition = 0.30 + 0.172
-
-    impot = max(revenu_imposable * taux_imposition, 0)
     credit_annuel = mensualite * 12
-    resultat_net = revenu_foncier - credit_annuel - impot
+
+    # --- Impôt selon régime ---
+    if montage == "Nom Propre (LMNP)":
+        # Résultat fiscal LMNP réel simplifié :
+        # recettes - charges exploitation - intérêts - amortissements
+        resultat_fiscal = resultat_exploitation - interet_annuel_annee1 - amortissement_bien - amortissement_travaux
+
+        # ✅ “vrai LMNP” dans un simulateur : si résultat <= 0 => impôt = 0
+        # Si positif : on ne modélise pas l’IR ici (fortement dépendant), on prend PS en minimum.
+        # (Tu peux mettre IR+PS si tu veux, mais la plupart du temps ce sera 0.)
+        impot = 0 if resultat_fiscal <= 0 else resultat_fiscal * ps
+
+    elif montage == "SCI":
+        # Simplification : SCI à l'IS (comme ton ancien script)
+        # (En réalité, SCI peut être à l'IR aussi. On peut l'ajouter ensuite.)
+        resultat_imposable = resultat_exploitation - interet_annuel_annee1 - amortissement_bien - amortissement_travaux
+        impot = max(resultat_imposable * 0.15, 0)
+
+    else:  # Nom Propre (Nue) = foncier IR + PS
+        resultat_imposable = resultat_exploitation - interet_annuel_annee1
+        impot = max(resultat_imposable * (tmi + ps), 0)
+
+    resultat_net = resultat_exploitation - credit_annuel - impot
     cashflow = resultat_net / 12
     rendement = (resultat_net / montant_emprunte) * 100
 
@@ -150,13 +156,12 @@ def calculer_resultats(montage):
         "cashflow": round(cashflow, 2),
         "rendement": round(rendement, 2),
         "impot": round(impot),
-        "revenu_foncier": revenu_foncier,
         "taxe_fonciere": taxe_fonciere,
         "assurance": assurance_annuelle,
         "charges_copro": charges_copro_annuelles,
-        "cfe": cfe_annuelle_calc,  # ✅ NEW
+        "cfe": cfe_annuelle_calc,
         "credit": credit_annuel,
-        "interet": round(interets_annuels[0]),
+        "interet": round(interet_annuel_annee1),
         "frais_notaire": round(frais_notaire),
         "travaux": travaux
     }
@@ -177,17 +182,11 @@ if st.session_state.history:
     data = st.session_state.history[idx]
 
     couleur_cf = "green" if data["cashflow"] > 0 else "red"
-    if data["rendement"] > 5:
-        couleur_rdt = "violet"
-    elif data["rendement"] > 3:
-        couleur_rdt = "green"
-    else:
-        couleur_rdt = "gray"
+    couleur_rdt = "violet" if data["rendement"] > 5 else ("green" if data["rendement"] > 3 else "gray")
 
     st.markdown(f"### 💶 Cashflow : <span style='color:{couleur_cf}'> {data['cashflow']} €</span>", unsafe_allow_html=True)
     st.markdown(f"### 📈 Rendement Annuel : <span style='color:{couleur_rdt}'> {data['rendement']} %</span>", unsafe_allow_html=True)
 
-    # ✅ Ajout CFE dans le graphe (si 0, ça n’impacte pas)
     labels = ["Impôt", "Taxe foncière", "Assurance", "Charges copro", "CFE", "Crédit", "Cashflow"]
     values = [
         data["impot"],
@@ -227,12 +226,11 @@ if st.session_state.history:
         st.write(f"Charges copro : {data['charges_copro']} €")
         st.write(f"CFE : {data['cfe']} €")
         st.write(f"Crédit : {data['credit']} €")
-        st.write(f"Intérêt annuel : {data['interet']} €")
+        st.write(f"Intérêt annuel (année 1) : {data['interet']} €")
         st.write(f"Frais de notaire : {data['frais_notaire']} €")
         st.write(f"Travaux : {data['travaux']} €")
         st.write(f"Cashflow : {data['cashflow']*12:.2f} € / an")
 
-    # --- Comparaison ---
     with st.expander("📊 Comparer les régimes fiscaux"):
         comparaisons = {m: calculer_resultats(m) for m in ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"]}
         for m, d in comparaisons.items():
