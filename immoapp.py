@@ -35,7 +35,6 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 # --- Table frais de notaire (bien ancien, estimations) + interpolation ---
-# Points (prix -> frais) issus du tableau précédent
 NOTAIRE_TABLE = [
     (10_000, 1_100),
     (20_000, 1_900),
@@ -59,38 +58,33 @@ NOTAIRE_TABLE = [
 ]
 
 def frais_notaire_estime(prix: float) -> float:
-    """Estimation des frais de notaire (bien ancien) par interpolation linéaire
-    à partir de NOTAIRE_TABLE."""
     table = NOTAIRE_TABLE
-
     if prix <= table[0][0]:
         return float(table[0][1])
     if prix >= table[-1][0]:
         return float(table[-1][1])
 
-    # Cherche l'intervalle [p0, p1] qui encadre le prix
     for (p0, f0), (p1, f1) in zip(table[:-1], table[1:]):
         if p0 <= prix <= p1:
-            # interpolation linéaire
             t = (prix - p0) / (p1 - p0)
             return float(f0 + t * (f1 - f0))
 
-    # sécurité (ne devrait jamais arriver)
     return float(prix * 0.07)
 
 # --- Entrée utilisateur ---
 st.markdown("#### 🔕 Informations générales")
 
 prix_bien = st.slider("Prix du bien", 30000, 350000, step=5000, value=150000, format="€%d")
-
-# ✅ PAS DE 2000€ ICI
 travaux = st.slider("Estimation des travaux", 0, 150000, step=2000, value=20000, format="€%d")
-
 loyer = st.slider("Loyer mensuel estimé", 300, 3500, step=50, value=700, format="€%d")
 
 taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 3000, step=50, value=800, format="€%d")
 charges_copro = st.slider("Charges de copropriété mensuelles", 10, 400, step=10, value=100, format="€%d")
 assurance = st.slider("Assurance mensuelle", 0, 100, step=5, value=20, format="€%d")
+
+# ✅ CFE (on l’applique uniquement en LMNP)
+cfe_annuelle = st.slider("CFE annuelle (LMNP)", 0, 2000, step=50, value=300, format="€%d")
+
 taux_credit = st.slider("Taux du crédit", 0.0, 4.0, step=0.1, value=1.5, format="%.2f %%")
 duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, format="%d ans")
 
@@ -101,9 +95,7 @@ def calculer_resultats(montage):
     duree_credit_mois = duree_credit_ans * 12
     taux_mensuel = taux_credit / 100 / 12
 
-    # ✅ Frais notaire variables selon prix
     frais_notaire = frais_notaire_estime(prix_bien)
-
     frais_dossier = 1400
     montant_emprunte = prix_bien + frais_notaire + frais_dossier + travaux
 
@@ -126,7 +118,15 @@ def calculer_resultats(montage):
     loyer_annuel = loyer * 12
     assurance_annuelle = assurance * 12
     charges_copro_annuelles = charges_copro * 12
-    revenu_foncier = loyer_annuel - taxe_fonciere - assurance_annuelle - charges_copro_annuelles
+
+    # ✅ CFE : uniquement si LMNP, sinon 0
+    cfe_annuelle_calc = cfe_annuelle if montage == "Nom Propre (LMNP)" else 0
+
+    # ✅ Charges annuelles totales (hors crédit, hors impôt)
+    charges_exploitation = taxe_fonciere + assurance_annuelle + charges_copro_annuelles + cfe_annuelle_calc
+
+    revenu_foncier = loyer_annuel - charges_exploitation
+
     amortissement_bien = prix_bien / 20
     amortissement_travaux = travaux / 25
 
@@ -154,6 +154,7 @@ def calculer_resultats(montage):
         "taxe_fonciere": taxe_fonciere,
         "assurance": assurance_annuelle,
         "charges_copro": charges_copro_annuelles,
+        "cfe": cfe_annuelle_calc,  # ✅ NEW
         "credit": credit_annuel,
         "interet": round(interets_annuels[0]),
         "frais_notaire": round(frais_notaire),
@@ -186,16 +187,18 @@ if st.session_state.history:
     st.markdown(f"### 💶 Cashflow : <span style='color:{couleur_cf}'> {data['cashflow']} €</span>", unsafe_allow_html=True)
     st.markdown(f"### 📈 Rendement Annuel : <span style='color:{couleur_rdt}'> {data['rendement']} %</span>", unsafe_allow_html=True)
 
-    labels = ["Impôt", "Taxe foncière", "Assurance", "Charges copro", "Crédit", "Cashflow"]
+    # ✅ Ajout CFE dans le graphe (si 0, ça n’impacte pas)
+    labels = ["Impôt", "Taxe foncière", "Assurance", "Charges copro", "CFE", "Crédit", "Cashflow"]
     values = [
         data["impot"],
         data["taxe_fonciere"],
         data["assurance"],
         data["charges_copro"],
+        data["cfe"],
         data["credit"],
         data["cashflow"] * 12
     ]
-    colors = ["red", "orange", "gold", "gray", "dodgerblue", "lime"]
+    colors = ["red", "orange", "gold", "gray", "purple", "dodgerblue", "lime"]
     total = sum(values)
 
     fig, ax = plt.subplots(figsize=(6, 1.2))
@@ -203,7 +206,7 @@ if st.session_state.history:
     for v, c in zip(values, colors):
         ax.barh(0, v, left=left, color=c, edgecolor="none")
         left += v
-    ax.set_xlim(0, total)
+    ax.set_xlim(0, total if total > 0 else 1)
     ax.set_facecolor('black')
     fig.patch.set_facecolor('black')
     ax.axis("off")
@@ -211,6 +214,7 @@ if st.session_state.history:
 
     legend_items = [
         f"<span style='color:{colors[i]}'>{labels[i]} : {values[i]:,.0f} € ({(values[i]/total*100):.1f}%)</span>"
+        if total > 0 else f"<span style='color:{colors[i]}'>{labels[i]} : {values[i]:,.0f} €</span>"
         for i in range(len(labels))
     ]
     st.markdown(" | ".join(legend_items), unsafe_allow_html=True)
@@ -221,6 +225,7 @@ if st.session_state.history:
         st.write(f"Taxe foncière : {data['taxe_fonciere']} €")
         st.write(f"Assurance : {data['assurance']} €")
         st.write(f"Charges copro : {data['charges_copro']} €")
+        st.write(f"CFE : {data['cfe']} €")
         st.write(f"Crédit : {data['credit']} €")
         st.write(f"Intérêt annuel : {data['interet']} €")
         st.write(f"Frais de notaire : {data['frais_notaire']} €")
