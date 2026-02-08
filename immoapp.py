@@ -34,6 +34,50 @@ st.title("CF-Testing-b0")
 if "history" not in st.session_state:
     st.session_state.history = []
 
+# --- Table frais de notaire (bien ancien, estimations) + interpolation ---
+# Points (prix -> frais) issus du tableau précédent
+NOTAIRE_TABLE = [
+    (10_000, 1_100),
+    (20_000, 1_900),
+    (30_000, 2_700),
+    (40_000, 3_400),
+    (50_000, 3_900),
+    (60_000, 4_500),
+    (70_000, 5_100),
+    (80_000, 5_700),
+    (90_000, 6_200),
+    (100_000, 6_700),
+    (120_000, 7_900),
+    (150_000, 9_700),
+    (200_000, 12_900),
+    (250_000, 16_000),
+    (300_000, 19_100),
+    (350_000, 22_300),
+    (400_000, 25_400),
+    (450_000, 28_600),
+    (500_000, 31_800),
+]
+
+def frais_notaire_estime(prix: float) -> float:
+    """Estimation des frais de notaire (bien ancien) par interpolation linéaire
+    à partir de NOTAIRE_TABLE."""
+    table = NOTAIRE_TABLE
+
+    if prix <= table[0][0]:
+        return float(table[0][1])
+    if prix >= table[-1][0]:
+        return float(table[-1][1])
+
+    # Cherche l'intervalle [p0, p1] qui encadre le prix
+    for (p0, f0), (p1, f1) in zip(table[:-1], table[1:]):
+        if p0 <= prix <= p1:
+            # interpolation linéaire
+            t = (prix - p0) / (p1 - p0)
+            return float(f0 + t * (f1 - f0))
+
+    # sécurité (ne devrait jamais arriver)
+    return float(prix * 0.07)
+
 # --- Entrée utilisateur ---
 st.markdown("#### 🔕 Informations générales")
 
@@ -56,7 +100,10 @@ montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], 
 def calculer_resultats(montage):
     duree_credit_mois = duree_credit_ans * 12
     taux_mensuel = taux_credit / 100 / 12
-    frais_notaire = prix_bien * 0.08
+
+    # ✅ Frais notaire variables selon prix
+    frais_notaire = frais_notaire_estime(prix_bien)
+
     frais_dossier = 1400
     montant_emprunte = prix_bien + frais_notaire + frais_dossier + travaux
 
