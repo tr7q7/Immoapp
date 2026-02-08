@@ -68,21 +68,14 @@ def frais_notaire_estime(prix: float) -> float:
             return float(f0 + t * (f1 - f0))
     return float(prix * 0.07)
 
-# --- Estimation grossière CFE (LMNP) en fonction du "type" via prix ---
+# --- Estimation grossière CFE (LMNP) en fonction du prix ---
 def estimer_cfe_lmnp(prix_bien: float) -> int:
-    """
-    Estimation grossière (à défaut de commune/valeur locative).
-    Heuristique simple basée sur ordre de grandeur du bien :
-    - petit/studio : 250 €
-    - moyen (T2/T3) : 300 €
-    - plus grand : 400 €
-    """
     if prix_bien <= 90_000:
-        return 250
+        return 250  # studio / petit T2
     elif prix_bien <= 180_000:
-        return 300
+        return 300  # T2/T3
     else:
-        return 400
+        return 400  # plus grand / plus cher
 
 # --- Entrée utilisateur ---
 st.markdown("#### 🔕 Informations générales")
@@ -101,7 +94,7 @@ duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, form
 st.markdown("#### ⚙️ Choix du montage fiscal")
 montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], horizontal=True)
 
-# Param fiscal simplifié pour "Nue" (et si tu veux affiner SCI ensuite)
+# Param fiscal simplifié pour "Nue"
 tmi = st.slider("TMI (IR) - utilisé pour 'Nue'", 0, 45, step=1, value=30, format="%d %%") / 100
 ps = 0.172  # prélèvements sociaux
 
@@ -134,11 +127,14 @@ def calculer_resultats(montage):
     assurance_annuelle = assurance * 12
     charges_copro_annuelles = charges_copro * 12
 
-    # ✅ CFE auto uniquement pour LMNP
     cfe_annuelle_calc = estimer_cfe_lmnp(prix_bien) if montage == "Nom Propre (LMNP)" else 0
 
     charges_exploitation = taxe_fonciere + assurance_annuelle + charges_copro_annuelles + cfe_annuelle_calc
-    resultat_exploitation = loyer_annuel - charges_exploitation
+    resultat_exploitation = loyer_annuel - charges_exploitation  # net avant crédit/impôt
+
+    # ✅ Rendement net (hors crédit / hors impôt) : net d'exploitation / prix d'achat
+    # On prend le prix du bien seul (classique). Si tu veux sur "coût total" => change le dénominateur.
+    rendement_net = (resultat_exploitation / prix_bien) * 100 if prix_bien > 0 else 0
 
     # Amortissements (LMNP réel, simplifié)
     amortissement_bien = prix_bien / 30
@@ -146,25 +142,24 @@ def calculer_resultats(montage):
 
     credit_annuel = mensualite * 12
 
-    # --- Impôt selon régime ---
     if montage == "Nom Propre (LMNP)":
         resultat_fiscal = resultat_exploitation - interet_annuel_annee1 - amortissement_bien - amortissement_travaux
         impot = 0 if resultat_fiscal <= 0 else resultat_fiscal * ps
     elif montage == "SCI":
-        # Simplification : SCI IS 15% (baseline)
         resultat_imposable = resultat_exploitation - interet_annuel_annee1 - amortissement_bien - amortissement_travaux
         impot = max(resultat_imposable * 0.15, 0)
     else:  # Nue
         resultat_imposable = resultat_exploitation - interet_annuel_annee1
         impot = max(resultat_imposable * (tmi + ps), 0)
 
-    resultat_net = resultat_exploitation - credit_annuel - impot
-    cashflow = resultat_net / 12
-    rendement = (resultat_net / montant_emprunte) * 100
+    resultat_net_apres = resultat_exploitation - credit_annuel - impot
+    cashflow = resultat_net_apres / 12
+    rendement = (resultat_net_apres / montant_emprunte) * 100
 
     return {
         "cashflow": round(cashflow, 2),
         "rendement": round(rendement, 2),
+        "rendement_net": round(rendement_net, 2),
         "impot": round(impot),
         "taxe_fonciere": taxe_fonciere,
         "assurance": assurance_annuelle,
@@ -194,8 +189,17 @@ if st.session_state.history:
     couleur_cf = "green" if data["cashflow"] > 0 else "red"
     couleur_rdt = "violet" if data["rendement"] > 5 else ("green" if data["rendement"] > 3 else "gray")
 
+    # ✅ Couleur Rendement Net selon règles demandées
+    if data["rendement_net"] > 10:
+        couleur_rdt_net = "green"
+    elif data["rendement_net"] < 6:
+        couleur_rdt_net = "red"
+    else:
+        couleur_rdt_net = "gray"
+
     st.markdown(f"### 💶 Cashflow : <span style='color:{couleur_cf}'> {data['cashflow']} €</span>", unsafe_allow_html=True)
     st.markdown(f"### 📈 Rendement Annuel : <span style='color:{couleur_rdt}'> {data['rendement']} %</span>", unsafe_allow_html=True)
+    st.markdown(f"### 🧾 Rendement Net : <span style='color:{couleur_rdt_net}'> {data['rendement_net']} %</span>", unsafe_allow_html=True)
 
     labels = ["Impôt", "Taxe foncière", "Assurance", "Charges copro", "CFE", "Crédit", "Cashflow"]
     values = [
@@ -240,6 +244,7 @@ if st.session_state.history:
         st.write(f"Frais de notaire : {data['frais_notaire']} €")
         st.write(f"Travaux : {data['travaux']} €")
         st.write(f"Cashflow : {data['cashflow']*12:.2f} € / an")
+        st.write(f"Rendement Net : {data['rendement_net']:.2f} %")
 
     with st.expander("📊 Comparer les régimes fiscaux"):
         comparaisons = {m: calculer_resultats(m) for m in ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"]}
