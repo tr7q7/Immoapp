@@ -38,7 +38,10 @@ if "history" not in st.session_state:
 st.markdown("#### 🔕 Informations générales")
 
 prix_bien = st.slider("Prix du bien", 30000, 350000, step=5000, value=150000, format="€%d")
-travaux = st.slider("Estimation des travaux", 0, 150000, step=5000, value=20000, format="€%d")
+
+# ✅ PAS DE 2000€ ICI
+travaux = st.slider("Estimation des travaux", 0, 150000, step=2000, value=20000, format="€%d")
+
 loyer = st.slider("Loyer mensuel estimé", 300, 3500, step=50, value=700, format="€%d")
 
 taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 3000, step=50, value=800, format="€%d")
@@ -116,7 +119,12 @@ if st.button("Calculer"):
     st.session_state.history = st.session_state.history[:3]
 
 if st.session_state.history:
-    selected = st.radio("Résultats enregistrés :", [f"CF{i+1}" for i in range(len(st.session_state.history))], index=0, horizontal=True)
+    selected = st.radio(
+        "Résultats enregistrés :",
+        [f"CF{i+1}" for i in range(len(st.session_state.history))],
+        index=0,
+        horizontal=True
+    )
     idx = int(selected[2]) - 1
     data = st.session_state.history[idx]
 
@@ -142,6 +150,7 @@ if st.session_state.history:
     ]
     colors = ["red", "orange", "gold", "gray", "dodgerblue", "lime"]
     total = sum(values)
+
     fig, ax = plt.subplots(figsize=(6, 1.2))
     left = 0
     for v, c in zip(values, colors):
@@ -154,7 +163,7 @@ if st.session_state.history:
     st.pyplot(fig)
 
     legend_items = [
-        f"<span style='color:{colors[i]}'><b>{labels[i]}</b> : {values[i]:,.0f} € ({(values[i]/total*100):.1f}%)</span>"
+        f"<span style='color:{colors[i]}'>{labels[i]} : {values[i]:,.0f} € ({(values[i]/total*100):.1f}%)</span>"
         for i in range(len(labels))
     ]
     st.markdown(" | ".join(legend_items), unsafe_allow_html=True)
@@ -176,4 +185,8 @@ if st.session_state.history:
         comparaisons = {m: calculer_resultats(m) for m in ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"]}
         for m, d in comparaisons.items():
             couleur = "green" if d["cashflow"] > 0 else "red"
-            st.markdown(f"**{m}** : Cashflow <span style='color:{couleur}'><b>{d['cashflow']} €/mois</b></span> — Rendement : {d['rendement']:.2f} % — Impôt : {d['impot']} €", unsafe_allow_html=True)
+            st.markdown(
+                f"{m} : Cashflow <span style='color:{couleur}'>{d['cashflow']} €/mois</span> — "
+                f"Rendement : {d['rendement']:.2f} % — Impôt : {d['impot']} €",
+                unsafe_allow_html=True
+            )
