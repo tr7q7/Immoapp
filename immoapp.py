@@ -68,6 +68,22 @@ def frais_notaire_estime(prix: float) -> float:
             return float(f0 + t * (f1 - f0))
     return float(prix * 0.07)
 
+# --- Estimation grossière CFE (LMNP) en fonction du "type" via prix ---
+def estimer_cfe_lmnp(prix_bien: float) -> int:
+    """
+    Estimation grossière (à défaut de commune/valeur locative).
+    Heuristique simple basée sur ordre de grandeur du bien :
+    - petit/studio : 250 €
+    - moyen (T2/T3) : 300 €
+    - plus grand : 400 €
+    """
+    if prix_bien <= 90_000:
+        return 250
+    elif prix_bien <= 180_000:
+        return 300
+    else:
+        return 400
+
 # --- Entrée utilisateur ---
 st.markdown("#### 🔕 Informations générales")
 
@@ -78,7 +94,6 @@ loyer = st.slider("Loyer mensuel estimé", 300, 3500, step=50, value=700, format
 taxe_fonciere = st.slider("Taxe foncière annuelle", 500, 3000, step=50, value=800, format="€%d")
 charges_copro = st.slider("Charges de copropriété mensuelles", 10, 400, step=10, value=100, format="€%d")
 assurance = st.slider("Assurance mensuelle", 0, 100, step=5, value=20, format="€%d")
-cfe_annuelle = st.slider("CFE annuelle (LMNP)", 0, 2000, step=50, value=300, format="€%d")
 
 taux_credit = st.slider("Taux du crédit", 0.0, 6.0, step=0.1, value=1.5, format="%.2f %%")
 duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, format="%d ans")
@@ -86,9 +101,19 @@ duree_credit_ans = st.slider("Durée du crédit", 10, 30, step=1, value=20, form
 st.markdown("#### ⚙️ Choix du montage fiscal")
 montage = st.radio("Montage", ["Nom Propre (LMNP)", "SCI", "Nom Propre (Nue)"], horizontal=True)
 
-# ✅ paramètres fiscaux simplifiés (modifiables si tu veux)
-tmi = st.slider("TMI (IR) - pour SCI/Nue", 0, 45, step=1, value=30, format="%d %%") / 100
+# Param fiscal simplifié pour "Nue" (et si tu veux affiner SCI ensuite)
+tmi = st.slider("TMI (IR) - utilisé pour 'Nue'", 0, 45, step=1, value=30, format="%d %%") / 100
 ps = 0.172  # prélèvements sociaux
+
+def calculer_interet_annee1(capital: float, taux_mensuel: float, mensualite: float) -> float:
+    solde = capital
+    interet_total = 0.0
+    for _ in range(12):
+        interet = solde * taux_mensuel
+        amort = mensualite - interet
+        solde -= amort
+        interet_total += interet
+    return interet_total
 
 def calculer_resultats(montage):
     duree_credit_mois = duree_credit_ans * 12
@@ -103,48 +128,33 @@ def calculer_resultats(montage):
     else:
         mensualite = montant_emprunte / duree_credit_mois
 
-    # intérêts année 1 (approx) via amortissement mois par mois
-    solde = montant_emprunte
-    interet_total = 0
-    for _ in range(12):
-        interet = solde * taux_mensuel
-        amort = mensualite - interet
-        solde -= amort
-        interet_total += interet
-    interet_annuel_annee1 = interet_total
+    interet_annuel_annee1 = calculer_interet_annee1(montant_emprunte, taux_mensuel, mensualite)
 
     loyer_annuel = loyer * 12
     assurance_annuelle = assurance * 12
     charges_copro_annuelles = charges_copro * 12
-    cfe_annuelle_calc = cfe_annuelle if montage == "Nom Propre (LMNP)" else 0
+
+    # ✅ CFE auto uniquement pour LMNP
+    cfe_annuelle_calc = estimer_cfe_lmnp(prix_bien) if montage == "Nom Propre (LMNP)" else 0
 
     charges_exploitation = taxe_fonciere + assurance_annuelle + charges_copro_annuelles + cfe_annuelle_calc
     resultat_exploitation = loyer_annuel - charges_exploitation
 
-    # amortissements (vision LMNP réel simplifiée)
-    amortissement_bien = prix_bien / 30  # plus réaliste que 20 ans (souvent 25-40)
-    amortissement_travaux = travaux / 10 if travaux > 0 else 0  # souvent 5-15 ans selon nature
+    # Amortissements (LMNP réel, simplifié)
+    amortissement_bien = prix_bien / 30
+    amortissement_travaux = travaux / 10 if travaux > 0 else 0
 
     credit_annuel = mensualite * 12
 
     # --- Impôt selon régime ---
     if montage == "Nom Propre (LMNP)":
-        # Résultat fiscal LMNP réel simplifié :
-        # recettes - charges exploitation - intérêts - amortissements
         resultat_fiscal = resultat_exploitation - interet_annuel_annee1 - amortissement_bien - amortissement_travaux
-
-        # ✅ “vrai LMNP” dans un simulateur : si résultat <= 0 => impôt = 0
-        # Si positif : on ne modélise pas l’IR ici (fortement dépendant), on prend PS en minimum.
-        # (Tu peux mettre IR+PS si tu veux, mais la plupart du temps ce sera 0.)
         impot = 0 if resultat_fiscal <= 0 else resultat_fiscal * ps
-
     elif montage == "SCI":
-        # Simplification : SCI à l'IS (comme ton ancien script)
-        # (En réalité, SCI peut être à l'IR aussi. On peut l'ajouter ensuite.)
+        # Simplification : SCI IS 15% (baseline)
         resultat_imposable = resultat_exploitation - interet_annuel_annee1 - amortissement_bien - amortissement_travaux
         impot = max(resultat_imposable * 0.15, 0)
-
-    else:  # Nom Propre (Nue) = foncier IR + PS
+    else:  # Nue
         resultat_imposable = resultat_exploitation - interet_annuel_annee1
         impot = max(resultat_imposable * (tmi + ps), 0)
 
@@ -224,7 +234,7 @@ if st.session_state.history:
         st.write(f"Taxe foncière : {data['taxe_fonciere']} €")
         st.write(f"Assurance : {data['assurance']} €")
         st.write(f"Charges copro : {data['charges_copro']} €")
-        st.write(f"CFE : {data['cfe']} €")
+        st.write(f"CFE (estimée) : {data['cfe']} €")
         st.write(f"Crédit : {data['credit']} €")
         st.write(f"Intérêt annuel (année 1) : {data['interet']} €")
         st.write(f"Frais de notaire : {data['frais_notaire']} €")
